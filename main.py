@@ -142,7 +142,8 @@ class CirclesCollection:
                  brush_line_size: int,
                  circles_color: Tuple[int, int, int],
                  line_color: Tuple[int, int, int],
-                 is_draw_circles: bool):
+                 is_draw_circles: bool,
+                 draw_each_updates: int):
 
         self.circles: List[Circle] = circles
         self.line_points: List[Coord] = [Coord(-10000, -10000), Coord(-10000, -10000)]
@@ -154,6 +155,13 @@ class CirclesCollection:
         self.circles_color = circles_color
         self.line_color = line_color
         self.is_draw_circles = is_draw_circles
+        self.draw_each_updates = draw_each_updates
+        self.cur_updates = 0
+
+        self.window = GraphicWindow(self.scene_width, self.scene_height)
+        self.image_points = DrawableSurface(self.scene_width, self.scene_height)
+        self.image_circles = DrawableSurface(self.scene_width, self.scene_height)
+        self.image_points.surface.fill((0, 0, 0, 0))
 
         # Set main circle pos with help temp circle
         temp_circle = Circle(is_draw_circles, 0, Radius(1), 1)
@@ -165,35 +173,40 @@ class CirclesCollection:
             circles[i].add_angle_velocity(circles[i - 1])
 
     def run(self):
-        window = GraphicWindow(self.scene_width, self.scene_height)
-        image_points = DrawableSurface(self.scene_width, self.scene_height)
-        image_circles = DrawableSurface(self.scene_width, self.scene_height)
-        image_points.surface.fill((0, 0, 0, 0))
-
-        while window.is_run():
-            window.handle_events()
-
-            for i in range(1, len(self.circles)):
-                self.circles[i].recalc_center(self.circles[i - 1])
-            for circle in self.circles:
-                circle.update_angle()
-
-            if self.is_draw_circles:
-                image_circles.surface.fill((0, 0, 0, 0))
-                for circle in self.circles:
-                    for pixel in circle.get_pixels():
-                        image_circles.draw_pixel(pixel, (255, 255, 255))
-                window.surface.blit(image_circles.surface, (0, 0))
-
-            image_points.draw_pixel(self.circles[-1].center, self.line_color, self.brush_line_size)
-
-            window.surface.blit(image_points.surface, (0, 0))
-            if self.is_draw_circles:
-                window.surface.blit(image_circles.surface, (0, 0))
-
-            window.flip()
+        while self.window.is_run():
+            self.window.handle_events()
+            self.update()
+            self.draw()
 
         pygame.quit()
+
+    def update(self):
+        for i in range(1, len(self.circles)):
+            self.circles[i].recalc_center(self.circles[i - 1])
+        for circle in self.circles:
+            circle.update_angle()
+        self.cur_updates += 1
+
+    def draw(self):
+        self.image_points.draw_pixel(self.circles[-1].center, self.line_color, self.brush_line_size)
+
+        if self.cur_updates == self.draw_each_updates:
+            self.cur_updates = 0
+        else:
+            return
+
+        if self.is_draw_circles:
+            self.image_circles.surface.fill((0, 0, 0, 0))
+            for circle in self.circles:
+                for pixel in circle.get_pixels():
+                    self.image_circles.draw_pixel(pixel, (255, 255, 255))
+            self.window.surface.blit(self.image_circles.surface, (0, 0))
+
+        self.window.surface.blit(self.image_points.surface, (0, 0))
+        if self.is_draw_circles:
+            self.window.surface.blit(self.image_circles.surface, (0, 0))
+
+        self.window.flip()
 
 
 class InitEditor(wx.Frame):
@@ -260,7 +273,8 @@ class GUI:
             self.gui_globals['brush_size'],
             self.gui_globals['circles_color'],
             self.gui_globals['line_color'],
-            self.gui_globals['is_draw_circles']
+            self.gui_globals['is_draw_circles'],
+            self.gui_globals['draw_each_updates'],
         )
         self.circles_collection.run()
 
@@ -268,12 +282,13 @@ class GUI:
         w, h = GetSystemMetrics(0), GetSystemMetrics(1)
 
         params = [
-            [f'w, h                = {w}, {h}'                , '\t# Размеры экрана'],
-            [f'main_circle_pos     = Coord(w*0.5, h*0.5)'     , '\t# Позиция первой окружности'],
-            [f'brush_size          = 5'                       , '\t# Размер кисти линии'],
-            [f'circles_color       = (255, 255, 255)'         , '\t# Цвет кругов в RGB'],
-            [f'line_color          = (155, 10, 20)'          , '\t# Цвет линии в RGB'],
-            [f'idc=is_draw_circles = False'                   , '\t# Рисовать окружности'],
+            [f'w, h                = {w}, {h}'           , '\t# Размеры экрана'],
+            [f'main_circle_pos     = Coord(w*0.5, h*0.5)', '\t# Позиция первой окружности'],
+            [f'brush_size          = 5'                  , '\t# Размер кисти линии'],
+            [f'circles_color       = (255, 255, 255)'    , '\t# Цвет кругов в RGB'],
+            [f'line_color          = (155, 10, 20)'      , '\t# Цвет линии в RGB'],
+            [f'idc=is_draw_circles = False'              , '\t# Рисовать окружности'],
+            [f'draw_each_updates   = 100'                , '\t# Интервал рисования'],
         ]
 
         # Align comments with max length of param line
